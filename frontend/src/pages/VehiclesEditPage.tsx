@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { useTopbarAction } from "../layout/useTopbarAction";
 import { getToken } from "../auth/token";
 
 type FieldErrors = Partial<Record<"plate" | "brand" | "model" | "year", string>>;
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const PLATE_REGEX = /^[A-Z]{3}\d{3,4}$/;
 
 function normalizeMessage(msg: any): string[] {
@@ -141,7 +141,7 @@ export default function VehiclesEditPage() {
 
       try {
         const token = getToken();
-        const res = await fetch(`${API_URL}/vehicles/${id}`, {
+        const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -196,7 +196,7 @@ export default function VehiclesEditPage() {
         year: Number(form.year),
       };
 
-      const res = await fetch(`${API_URL}/vehicles/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/vehicles/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

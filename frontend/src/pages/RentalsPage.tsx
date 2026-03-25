@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { getToken } from "../auth/token";
 
 type Rental = {
@@ -20,8 +21,6 @@ type Rental = {
   diasExceso?: number;
   estado: string;
 };
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 function Badge({ text }: { text: string }) {
   return (
@@ -94,7 +93,7 @@ export default function RentalsPage() {
       setLoading(true);
 
       const token = getToken();
-      const res = await fetch(`${API_URL}/alquileres`, {
+      const res = await fetch(`${API_BASE_URL}/alquileres`, {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -223,7 +222,7 @@ export default function RentalsPage() {
       setFinalizeLoading(true);
 
       const token = getToken();
-      const res = await fetch(`${API_URL}/alquileres/${selectedRental._id}/finalizar`, {
+      const res = await fetch(`${API_BASE_URL}/alquileres/${selectedRental._id}/finalizar`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -257,7 +256,7 @@ export default function RentalsPage() {
       setDeletingRentalId(rental._id);
 
       const token = getToken();
-      const res = await fetch(`${API_URL}/alquileres/${rental._id}`, {
+      const res = await fetch(`${API_BASE_URL}/alquileres/${rental._id}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -292,7 +291,7 @@ export default function RentalsPage() {
       setCancelingRentalId(cancelPreviewRental._id);
 
       const token = getToken();
-      const res = await fetch(`${API_URL}/alquileres/${cancelPreviewRental._id}/cancelar`, {
+      const res = await fetch(`${API_BASE_URL}/alquileres/${cancelPreviewRental._id}/cancelar`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

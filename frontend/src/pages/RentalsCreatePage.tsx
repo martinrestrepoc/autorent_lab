@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { getToken } from "../auth/token";
 import { useTopbarAction } from "../layout/useTopbarAction";
 
@@ -15,8 +16,6 @@ type Vehicle = {
   brand: string;
   status?: string;
 };
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 function normalizeMessage(msg: any): string[] {
   if (Array.isArray(msg)) return msg.map(String);
@@ -56,7 +55,7 @@ export default function RentalsCreatePage() {
 
   async function fetchJSON(path: string) {
     const token = getToken();
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -143,7 +142,7 @@ export default function RentalsCreatePage() {
         selectedClient?.fullName || selectedClient?.email || "cliente asignado";
 
       const token = getToken();
-      const res = await fetch(`${API_URL}/alquileres`, {
+      const res = await fetch(`${API_BASE_URL}/alquileres`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

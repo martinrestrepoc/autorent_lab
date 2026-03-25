@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { useTopbarAction } from "../layout/useTopbarAction";
 import { getToken } from "../auth/token";
 
@@ -17,7 +18,6 @@ type VehicleLegalDocument = {
   status: DocumentStatus;
 };
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 const DOCUMENT_TYPE_OPTIONS: { value: VehicleDocumentType; label: string }[] = [
   { value: "SOAT", label: "SOAT" },
   { value: "TARJETA_PROPIEDAD", label: "Tarjeta de propiedad" },
@@ -119,7 +119,7 @@ export default function VehiclesDocumentsPage() {
 
     try {
       const token = getToken();
-      const res = await fetch(`${API_URL}/vehicles/${vehicleId}/documentos`, {
+      const res = await fetch(`${API_BASE_URL}/vehicles/${vehicleId}/documentos`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
@@ -171,7 +171,7 @@ export default function VehiclesDocumentsPage() {
       formData.append("expiresAt", documentForm.expiresAt);
       formData.append("file", documentForm.file);
 
-      const res = await fetch(`${API_URL}/vehicles/${id}/documentos`, {
+      const res = await fetch(`${API_BASE_URL}/vehicles/${id}/documentos`, {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -207,7 +207,7 @@ export default function VehiclesDocumentsPage() {
     try {
       const token = getToken();
       const res = await fetch(
-        `${API_URL}/vehicles/${id}/documentos/${document.id}/descargar`,
+        `${API_BASE_URL}/vehicles/${id}/documentos/${document.id}/descargar`,
         {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),

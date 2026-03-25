@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { getToken } from "../auth/token";
 import VehicleStatusBadge from "../components/VehicleStatusBadge";
 
@@ -22,8 +23,6 @@ type Client = {
 type Rental = {
   _id: string;
 };
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000"; // ✅
 
 function StatCard({
   label,
@@ -72,7 +71,7 @@ export default function DashboardPage() {
   async function fetchJSON(path: string) {
     const token = getToken();
 
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

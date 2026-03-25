@@ -1,8 +1,9 @@
 import axios from "axios";
+import { API_BASE_URL } from "./base-url";
 import { getToken, clearToken } from "../auth/token";
 
 export const http = axios.create({
-  baseURL: "http://localhost:3000",
+  baseURL: API_BASE_URL,
 });
 
 http.interceptors.request.use((config) => {

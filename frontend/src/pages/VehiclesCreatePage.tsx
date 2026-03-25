@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE_URL } from "../api/base-url";
 import { useTopbarAction } from "../layout/useTopbarAction";
 import { getToken } from "../auth/token";
 
 type FieldErrors = Partial<Record<"plate" | "brand" | "model" | "year", string>>;
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 // Acepta ABC123 o ABC1234
 const PLATE_REGEX = /^[A-Z]{3}\d{3,4}$/;
 
@@ -117,7 +117,7 @@ export default function VehiclesCreatePage() {
         year: Number(form.year),
       };
 
-      const res = await fetch(`${API_URL}/vehicles`, {
+      const res = await fetch(`${API_BASE_URL}/vehicles`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
