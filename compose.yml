@@ -15,16 +15,27 @@ services:
       start_period: 10s
 
   backend:
+   #  build da instrucciones para construir la imagen del backend a partir del Dockerfile ubicado en ./backend
+   # Se usa cuando Docker tiene que construir una imagen usando un Dockerfile, en vez de usar una imagen ya existente.
     build:
+      # la carpeta desde donde Docker toma los archivos para construir la imagen.
       context: ./backend
     restart: unless-stopped
+    # leer el archivo .env y va a pasar esas variables al contenedor como variables de entorno.
     env_file:
       - ./.env
+    # espera que el healthcheck de mongo diga OK, antes de arrancar el backend (para que funcione, mongo debe tenet un healthcheck):
+        # mongo container created
+        # mongo started
+        # mongo responde ping
+        # mongo healthy
+        # backend arranca
     depends_on:
       mongo:
         condition: service_healthy
     ports:
       - "3000:3000"
+    # se indica que se usa este volumen usa este volumen, pero no se dice cómo se define.
     volumes:
       - backend_uploads:/app/uploads
 
@@ -32,11 +43,18 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
+    # levanta este servicio después del backend, pero no garantiza que el backend este funcionando
     depends_on:
       - backend
     ports:
       - "8080:8080"
 
+# declarar y crear los volúmenes administrados por Docker,
+# para que los servicios puedan usarlos y los datos persistan aunque el contenedor se destruya.
 volumes:
   mongo_data:
   backend_uploads:
+
+# como no se declara networks, Docker Compose crea una red por defecto para que los servicios 
+# puedan comunicarse entre sí usando los nombres de servicio como hostnames (mongo, backend, frontend).
+# gracias al DNS interno de la red que crea Docker
