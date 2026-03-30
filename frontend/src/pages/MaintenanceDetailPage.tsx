@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { formatAppDate } from "../utils/date";
 
 type Maintenance = {
   _id: string;
@@ -45,30 +47,25 @@ export default function MaintenanceDetailPage() {
       : "/vehicles",
   });
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError("");
       setLoading(true);
       const { data } = await http.get(`/mantenimientos/${id}`);
       setMaintenance(data);
-    } catch (e: any) {
-      setError(
-        e?.response?.data?.message ?? "No se pudo cargar el mantenimiento"
-      );
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "No se pudo cargar el mantenimiento"));
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    load();
   }, [id]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   function formatDate(dateStr?: string) {
-    if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO");
+    return formatAppDate(dateStr);
   }
 
   function formatCurrency(value?: number) {

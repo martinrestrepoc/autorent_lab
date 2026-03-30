@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
+import { formatAppDate, startOfAppDay } from "../utils/date";
 
 type VehicleSummary = {
   _id: string;
@@ -87,8 +89,8 @@ export default function AgendaPage() {
       const { data } = await http.get("/recordatorios");
       const list = Array.isArray(data) ? data : data.recordatorios ?? [];
       setReminders(list);
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? "Error cargando agenda");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando agenda"));
       setReminders([]);
     } finally {
       setLoading(false);
@@ -105,10 +107,10 @@ export default function AgendaPage() {
     return {
       total: reminders.length,
       today: reminders.filter(
-        (item) => startOfDay(new Date(item.fechaRecordatorio)).getTime() === today.getTime(),
+        (item) => startOfDay(item.fechaRecordatorio).getTime() === today.getTime(),
       ).length,
       upcoming: reminders.filter(
-        (item) => startOfDay(new Date(item.fechaRecordatorio)).getTime() > today.getTime(),
+        (item) => startOfDay(item.fechaRecordatorio).getTime() > today.getTime(),
       ).length,
       activated: reminders.filter((item) => item.estado === "ACTIVADO").length,
     };
@@ -118,7 +120,7 @@ export default function AgendaPage() {
     const today = startOfDay(new Date()).getTime();
 
     return reminders.filter((item) => {
-      const date = startOfDay(new Date(item.fechaRecordatorio)).getTime();
+      const date = startOfDay(item.fechaRecordatorio).getTime();
 
       if (filter === "hoy") return date === today;
       if (filter === "proximos") return date > today;
@@ -289,17 +291,13 @@ export default function AgendaPage() {
   );
 }
 
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
+function startOfDay(date: string | Date) {
+  return startOfAppDay(date);
 }
 
 function formatDate(
   dateString: string,
   options?: Intl.DateTimeFormatOptions,
 ) {
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("es-CO", options).format(date);
+  return formatAppDate(dateString, "es-CO", options);
 }

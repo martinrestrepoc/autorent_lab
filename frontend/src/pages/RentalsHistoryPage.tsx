@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { formatAppDate } from "../utils/date";
 
 type Client = {
   _id: string;
@@ -39,7 +41,7 @@ export default function RentalsHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setError("");
       setLoading(true);
@@ -49,22 +51,20 @@ export default function RentalsHistoryPage() {
       const list = data?.historial ?? [];
       setRents(list);
 
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Error cargando historial");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando historial"));
       setRents([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadHistory();
   }, [id]);
 
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
   function formatDate(date: string) {
-    const d = new Date(date);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO");
+    return formatAppDate(date);
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { extractErrorMessage, extractErrorMessages } from "../api/error";
 import { http } from "../api/http";
 
 type Client = {
@@ -74,8 +75,8 @@ export default function ClientsPage() {
       // tu API a veces devuelve data.clients, a veces un array directo.
       const list = Array.isArray(data) ? data : data.clients ?? [];
       setClients(list);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Error cargando clientes");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando clientes"));
     } finally {
       setLoading(false);
     }
@@ -113,9 +114,8 @@ export default function ClientsPage() {
       await http.post("/clients", form);
       await loadClients();
       setMode("list");
-    } catch (e: any) {
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(" • ") : msg || "Error creando cliente");
+    } catch (error: unknown) {
+      setError(extractErrorMessages(error, "Error creando cliente").join(" • "));
     }
   };
 
@@ -137,8 +137,8 @@ export default function ClientsPage() {
 
       setSelectedId(id);
       setMode("edit");
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "No se pudo cargar el cliente");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "No se pudo cargar el cliente"));
     } finally {
       setLoading(false);
     }
@@ -153,9 +153,10 @@ export default function ClientsPage() {
       await loadClients();
       setMode("list");
       setSelectedId(null);
-    } catch (e: any) {
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(" • ") : msg || "Error actualizando cliente");
+    } catch (error: unknown) {
+      setError(
+        extractErrorMessages(error, "Error actualizando cliente").join(" • "),
+      );
     }
   };
 
@@ -168,8 +169,8 @@ export default function ClientsPage() {
       setError("");
       await http.delete(`/clients/${id}`);
       await loadClients();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Error eliminando cliente");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error eliminando cliente"));
     }
   };
 

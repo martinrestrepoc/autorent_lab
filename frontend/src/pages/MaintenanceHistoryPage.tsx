@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { formatAppDate } from "../utils/date";
 
 type Maintenance = {
   _id: string;
@@ -59,7 +61,7 @@ export default function MaintenanceHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     try {
       setError("");
       setLoading(true);
@@ -67,24 +69,20 @@ export default function MaintenanceHistoryPage() {
       const { data } = await http.get(`/vehiculos/${id}/mantenimientos`);
       const list: Maintenance[] = data?.mantenimientos ?? [];
       setMantenimientos(list);
-    } catch (e: any) {
-      setError(
-        e?.response?.data?.message ?? "Error cargando historial de mantenimientos"
-      );
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando historial de mantenimientos"));
       setMantenimientos([]);
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadHistory();
   }, [id]);
 
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
   function formatDate(dateStr: string) {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO");
+    return formatAppDate(dateStr);
   }
 
   function formatCurrency(value: number) {

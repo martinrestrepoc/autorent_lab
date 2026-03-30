@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { extractErrorMessages } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
 
@@ -29,9 +30,8 @@ export default function ClientsCreatePage() {
       setSaving(true);
       await http.post("/clients", form);
       navigate("/clients");
-    } catch (e: any) {
-      const msg = e?.response?.data?.message;
-      setError(Array.isArray(msg) ? msg.join(" • ") : msg || "Error creando cliente");
+    } catch (error: unknown) {
+      setError(extractErrorMessages(error, "Error creando cliente").join(" • "));
     } finally {
       setSaving(false);
     }

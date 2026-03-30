@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../api/base-url";
 import { getToken } from "../auth/token";
@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchJSON(path: string) {
+  const fetchJSON = useCallback(async (path: string) => {
     const token = getToken();
 
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -81,9 +81,9 @@ export default function DashboardPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.message || `Error ${res.status} cargando ${path}`);
     return data;
-  }
+  }, []);
 
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
@@ -117,12 +117,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [fetchJSON]);
 
   useEffect(() => {
-    loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadDashboard();
+  }, [loadDashboard]);
 
   const totalVehicles = vehicles.length;
   const totalClients = clients.length;

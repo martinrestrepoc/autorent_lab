@@ -1,18 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../api/base-url";
+import { normalizeMessage } from "../api/error";
 import { useTopbarAction } from "../layout/useTopbarAction";
 import { getToken } from "../auth/token";
 
 type FieldErrors = Partial<Record<"plate" | "brand" | "model" | "year", string>>;
 
 const PLATE_REGEX = /^[A-Z]{3}\d{3,4}$/;
-
-function normalizeMessage(msg: any): string[] {
-  if (Array.isArray(msg)) return msg.map(String);
-  if (typeof msg === "string") return [msg];
-  return ["Error inesperado"];
-}
 
 function mapBackendErrorsToFields(messages: string[]): {
   fieldErrors: FieldErrors;

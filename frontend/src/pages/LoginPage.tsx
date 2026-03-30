@@ -1,15 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { extractErrorMessage } from "../api/error";
 import { useAuth } from "../auth/useAuth";
-
-type ApiError = { message?: string | string[] };
-
-function normalizeMessage(msg: any) {
-  if (Array.isArray(msg)) return msg.map(String);
-  if (typeof msg === "string") return [msg];
-  return ["Error al iniciar sesión"];
-}
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -40,14 +32,7 @@ export default function LoginPage() {
       await login(email.trim(), password);
       nav("/", { replace: true });
     } catch (err: unknown) {
-      let msg = "Error al iniciar sesión";
-
-      if (axios.isAxiosError<ApiError>(err)) {
-        const data = err.response?.data;
-        msg = normalizeMessage(data?.message)[0] ?? msg;
-      }
-
-      setError(msg);
+      setError(extractErrorMessage(err, "Error al iniciar sesión"));
     } finally {
       setBusy(false);
     }

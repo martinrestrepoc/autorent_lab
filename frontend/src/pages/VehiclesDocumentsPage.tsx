@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../api/base-url";
+import { normalizeMessage } from "../api/error";
 import { useTopbarAction } from "../layout/useTopbarAction";
 import { getToken } from "../auth/token";
+import { formatAppDate } from "../utils/date";
 
 type VehicleDocumentType = "SOAT" | "TARJETA_PROPIEDAD" | "TECNOMECANICA";
 type DocumentStatus = "VIGENTE" | "VENCIDO";
@@ -23,12 +25,6 @@ const DOCUMENT_TYPE_OPTIONS: { value: VehicleDocumentType; label: string }[] = [
   { value: "TARJETA_PROPIEDAD", label: "Tarjeta de propiedad" },
   { value: "TECNOMECANICA", label: "Tecnomecánica" },
 ];
-
-function normalizeMessage(msg: any): string[] {
-  if (Array.isArray(msg)) return msg.map(String);
-  if (typeof msg === "string") return [msg];
-  return ["Error inesperado"];
-}
 
 function Badge({ text }: { text: string }) {
   return (
@@ -107,13 +103,7 @@ export default function VehiclesDocumentsPage() {
   const inputBase =
     "mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-white/25";
 
-  useEffect(() => {
-    if (!id) return;
-    void loadDocuments(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  async function loadDocuments(vehicleId: string) {
+  const loadDocuments = useCallback(async (vehicleId: string) => {
     setLoadingDocuments(true);
     setDocumentsError(null);
 
@@ -141,7 +131,12 @@ export default function VehiclesDocumentsPage() {
     } finally {
       setLoadingDocuments(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    void loadDocuments(id);
+  }, [id, loadDocuments]);
 
   async function onUploadDocument(e: React.FormEvent) {
     e.preventDefault();
@@ -239,9 +234,7 @@ export default function VehiclesDocumentsPage() {
   }
 
   function formatDate(date: string): string {
-    const parsed = new Date(date);
-    if (Number.isNaN(parsed.getTime())) return "—";
-    return parsed.toLocaleDateString("es-CO");
+    return formatAppDate(date);
   }
 
   function formatFileSize(size: number): string {

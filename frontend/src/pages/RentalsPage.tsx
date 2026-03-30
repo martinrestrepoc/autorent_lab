@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../api/base-url";
 import { getToken } from "../auth/token";
+import { formatAppDate } from "../utils/date";
 
 type Rental = {
   _id: string;
@@ -118,7 +119,6 @@ export default function RentalsPage() {
 
   useEffect(() => {
     loadRentals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -136,9 +136,11 @@ export default function RentalsPage() {
   }, []);
 
   function formatDate(dateString: string) {
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    return formatAppDate(dateString, "es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    });
   }
 
   function normalizeStatus(status: string) {

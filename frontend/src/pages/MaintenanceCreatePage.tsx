@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { extractErrorMessages } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { getTodayDateInputValue } from "../utils/date";
 
 type MaintenanceType = "preventivo" | "correctivo";
 
@@ -71,7 +73,7 @@ export default function MaintenanceCreatePage() {
     return Object.keys(errs).length === 0;
   }
 
-  const todayString = new Date().toISOString().slice(0, 10);
+  const todayString = getTodayDateInputValue();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,10 +122,10 @@ export default function MaintenanceCreatePage() {
       setTituloRecordatorio("");
       setDetalleRecordatorio("");
       setErrors({});
-    } catch (e: any) {
-      const msg =
-        e?.response?.data?.message ?? "No se pudo conectar con el servidor.";
-      setFormError(Array.isArray(msg) ? msg.join(", ") : msg);
+    } catch (error: unknown) {
+      setFormError(
+        extractErrorMessages(error, "No se pudo conectar con el servidor.").join(", "),
+      );
     } finally {
       setLoading(false);
     }

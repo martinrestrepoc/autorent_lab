@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
 import VehicleStatusBadge from "../components/VehicleStatusBadge";
 
@@ -63,8 +64,8 @@ export default function VehiclesPage() {
       // soporta array directo o { vehicles: [] }
       const list = Array.isArray(data) ? data : data.vehicles ?? [];
       setVehicles(list);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Error cargando vehículos");
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando vehículos"));
     } finally {
       setLoading(false);
     }
@@ -98,8 +99,8 @@ export default function VehiclesPage() {
     try {
       await http.delete(`/vehicles/${id}`);
       await loadVehicles();
-    } catch (e: any) {
-      alert(e?.response?.data?.message || "Error eliminando vehículo");
+    } catch (error: unknown) {
+      alert(extractErrorMessage(error, "Error eliminando vehículo"));
     }
   };
 

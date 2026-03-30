@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../api/base-url";
+import { normalizeMessage } from "../api/error";
 import { getToken } from "../auth/token";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { getTodayDateInputValue } from "../utils/date";
 
 type Client = {
   _id: string;
@@ -17,16 +19,10 @@ type Vehicle = {
   status?: string;
 };
 
-function normalizeMessage(msg: any): string[] {
-  if (Array.isArray(msg)) return msg.map(String);
-  if (typeof msg === "string") return [msg];
-  return ["Error inesperado"];
-}
-
 export default function RentalsCreatePage() {
   const navigate = useNavigate();
   useTopbarAction({ label: "Volver", to: "/rentals" });
-  const todayString = new Date().toISOString().slice(0, 10);
+  const todayString = getTodayDateInputValue();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -53,7 +49,7 @@ export default function RentalsCreatePage() {
   const inputBase =
     "mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-white/25";
 
-  async function fetchJSON(path: string) {
+  const fetchJSON = useCallback(async (path: string) => {
     const token = getToken();
     const res = await fetch(`${API_BASE_URL}${path}`, {
       headers: {
@@ -68,9 +64,9 @@ export default function RentalsCreatePage() {
       throw new Error(msg);
     }
     return data;
-  }
+  }, []);
 
-  async function loadInitialData() {
+  const loadInitialData = useCallback(async () => {
     setError(null);
     setLoadingInit(true);
 
@@ -93,12 +89,11 @@ export default function RentalsCreatePage() {
     } finally {
       setLoadingInit(false);
     }
-  }
+  }, [fetchJSON]);
 
   useEffect(() => {
-    loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadInitialData();
+  }, [loadInitialData]);
 
   useEffect(() => {
     if (createStartReminder) {

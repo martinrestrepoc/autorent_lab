@@ -14,11 +14,6 @@ import { UploadVehicleDocumentDto } from './dto/upload-vehicle-document.dto';
 import { relative, join } from 'path';
 import { Rent } from '../rents/schemas/rent.schema';
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-
 type UploadedFile = {
   originalname: string;
   mimetype: string;

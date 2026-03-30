@@ -5,7 +5,6 @@ import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VehiclesModule } from './vehicles/vehicles.module';
-import { Client } from './clients/schemas/clients.schema';
 import { ClientsModule } from './clients/clients.module';
 import { AlquileresModule } from './rents/rents.module';
 import { MaintenancesModule } from './maintenances/maintenances.module';

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { extractErrorMessages } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
 
@@ -86,10 +87,10 @@ export default function ReminderCreatePage() {
         detalle: "",
       });
       setErrors({});
-    } catch (e: any) {
-      const message =
-        e?.response?.data?.message ?? "No se pudo guardar el recordatorio";
-      setFormError(Array.isArray(message) ? message.join(", ") : message);
+    } catch (error: unknown) {
+      setFormError(
+        extractErrorMessages(error, "No se pudo guardar el recordatorio").join(", "),
+      );
     } finally {
       setLoading(false);
     }

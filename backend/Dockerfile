@@ -11,6 +11,7 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
+
 # continuous integration (instalación limpia para builds automáticos):
     # rm -rf node_modules
     # leer package-lock.json

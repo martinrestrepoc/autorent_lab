@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
 import { useTopbarAction } from "../layout/useTopbarAction";
+import { formatAppDate } from "../utils/date";
 
 type Reminder = {
   _id: string;
@@ -39,32 +41,27 @@ export default function RemindersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadReminders() {
+  const loadReminders = useCallback(async () => {
     try {
       setError("");
       setLoading(true);
       const { data } = await http.get(`/vehiculos/${id}/recordatorios`);
       const list = Array.isArray(data) ? data : data.recordatorios ?? [];
       setReminders(list);
-    } catch (e: any) {
-      setError(
-        e?.response?.data?.message ?? "Error cargando recordatorios",
-      );
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando recordatorios"));
       setReminders([]);
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadReminders();
   }, [id]);
 
+  useEffect(() => {
+    void loadReminders();
+  }, [loadReminders]);
+
   function formatDate(dateString?: string | null) {
-    if (!dateString) return "—";
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO");
+    return formatAppDate(dateString);
   }
 
   return (

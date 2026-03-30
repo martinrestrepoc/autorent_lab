@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { extractErrorMessage } from "../api/error";
 import { http } from "../api/http";
+import { formatAppDate } from "../utils/date";
 
 type Notification = {
   _id: string;
@@ -39,10 +41,8 @@ export default function NotificationsPage() {
       const { data } = await http.get("/notificaciones");
       const list = Array.isArray(data) ? data : data.notificaciones ?? [];
       setNotifications(list);
-    } catch (e: any) {
-      setError(
-        e?.response?.data?.message ?? "Error cargando notificaciones",
-      );
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "Error cargando notificaciones"));
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -64,20 +64,15 @@ export default function NotificationsPage() {
             : item,
         ),
       );
-    } catch (e: any) {
-      setError(
-        e?.response?.data?.message ?? "No se pudo marcar la notificación",
-      );
+    } catch (error: unknown) {
+      setError(extractErrorMessage(error, "No se pudo marcar la notificación"));
     } finally {
       setMarkingId(null);
     }
   }
 
   function formatDate(dateString?: string | null) {
-    if (!dateString) return "—";
-    const d = new Date(dateString);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CO", {
+    return formatAppDate(dateString, "es-CO", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
