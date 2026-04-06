@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  DEPLOY_PATH: /opt/autorent_lab
+  DEPLOY_PATH: /opt/autorent
 
 jobs:
   build-and-push:
