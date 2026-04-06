@@ -130,7 +130,8 @@ jobs:
       - name: Add deploy host to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          echo "Scanning host ${{ secrets.SSH_HOST }} on port ${{ secrets.SSH_PORT }}"
+          ssh-keyscan -v -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Ensure deploy directory exists
         run: |
