@@ -1,0 +1,192 @@
+# Se deben configurar los secrets en github
+
+
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_PATH: /opt/autorent_lab
+
+jobs:
+  build-and-push:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+      git_sha_tag: ${{ steps.vars.outputs.git_sha_tag }}
+
+    steps:
+      - name: Checkout workflow_dispatch ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+
+      - name: Checkout workflow_run ref
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Compute image tags
+        id: vars
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SOURCE_SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SOURCE_SHA="${{ github.sha }}"
+          fi
+
+          echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+          echo "git_sha_tag=${SOURCE_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata for backend
+        id: backend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/autorent-backend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.vars.outputs.git_sha_tag }}
+
+      - name: Docker metadata for frontend
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/autorent-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.vars.outputs.git_sha_tag }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout workflow_dispatch ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+
+      - name: Checkout workflow_run ref
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add deploy host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Ensure deploy directory exists
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "mkdir -p '${{ env.DEPLOY_PATH }}'"
+
+      - name: Upload production compose file
+        run: |
+          scp -P "${{ secrets.SSH_PORT }}" compose.prod.yml \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.DEPLOY_PATH }}/compose.prod.yml"
+
+      - name: Deploy with Docker Compose
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}" \
+            DOCKERHUB_TOKEN="${DOCKERHUB_TOKEN}" \
+            IMAGE_TAG="${IMAGE_TAG}" \
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}" \
+            'bash -se' <<'EOF'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+
+          if [ ! -f .env ]; then
+            echo "Missing production .env in $DEPLOY_PATH"
+            exit 1
+          fi
+
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+          export DOCKERHUB_NAMESPACE="$DOCKERHUB_USERNAME"
+          export IMAGE_TAG="$IMAGE_TAG"
+
+          docker compose -f compose.prod.yml pull
+          docker compose -f compose.prod.yml up -d --remove-orphans
+          docker image prune -f
+          docker compose -f compose.prod.yml ps
+          EOF
+
+      - name: Validate deployed services
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}" \
+            'bash -se' <<'EOF'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+
+          test "$(docker compose -f compose.prod.yml exec -T mongo mongosh --quiet --eval "db.adminCommand('ping').ok")" = "1"
+
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            -X POST http://127.0.0.1:8080/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"invalid@example.com","password":"invalid-password"}')
+
+          test "$HTTP_CODE" = "401"
+          EOF

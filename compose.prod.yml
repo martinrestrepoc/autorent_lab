@@ -1,0 +1,36 @@
+services:
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
+
+  backend:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/autorent-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    depends_on:
+      - mongo
+    expose:
+      - "3000"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/autorent-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+
+volumes:
+  mongo_data:
+  backend_uploads:
