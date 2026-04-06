@@ -193,7 +193,7 @@ export default function DashboardPage() {
         <StatCard
           label="Vehículos registrados"
           value={loading ? "—" : totalVehicles}
-          hint="Flota total disponible en el sistema."
+          hint="Flota total registrada en el sistema."
           onClick={() => navigate("/vehicles")}
         />
         <StatCard
