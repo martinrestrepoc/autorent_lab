@@ -8,12 +8,21 @@ import { isValidObjectId, Model } from 'mongoose';
 import { Client } from 'src/clients/schemas/clients.schema';
 import { Maintenance } from 'src/maintenances/schemas/maintenance.schema';
 import { Vehicle } from 'src/vehicles/schemas/vehicle.schema';
+import { existsSync } from 'fs';
+import { join, relative } from 'path';
 import { RemindersService } from 'src/reminders/reminders.service';
 import { ReminderEvent } from 'src/reminders/schemas/reminder.schema';
 import { Rent } from './schemas/rent.schema';
 import { CreateRentDto } from './dto/create-rent.dto';
 import { FinalizeRentDto } from './dto/finalize-rent.dto';
 import { CancelRentDto } from './dto/cancel-rent.dto';
+
+type UploadedRentPhoto = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  path: string;
+};
 
 @Injectable()
 export class AlquileresService {
@@ -180,6 +189,79 @@ export class AlquileresService {
       .populate('cliente')
       .populate('vehiculo')
       .sort({ createdAt: -1 });
+  }
+
+  async uploadInitialConditionPhoto(rentId: string, file: UploadedRentPhoto) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+
+    if (!file) {
+      throw new BadRequestException('Debe adjuntar una foto');
+    }
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    const relativePath = relative(process.cwd(), file.path);
+    rent.fotosEstadoInicial.push({
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      storagePath: relativePath,
+      uploadedAt: new Date(),
+    } as any);
+    await rent.save();
+
+    const savedPhoto = rent.fotosEstadoInicial[rent.fotosEstadoInicial.length - 1] as any;
+
+    return {
+      message: 'Foto inicial cargada con éxito',
+      photo: this.toInitialConditionPhotoResponse(savedPhoto),
+    };
+  }
+
+  async listInitialConditionPhotos(rentId: string) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    return {
+      photos: (rent.fotosEstadoInicial ?? []).map((photo: any) =>
+        this.toInitialConditionPhotoResponse(photo),
+      ),
+    };
+  }
+
+  async getInitialConditionPhotoFile(rentId: string, photoId: string) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+    this.validateObjectId(photoId, 'Foto no encontrada');
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    const photo = (rent.fotosEstadoInicial ?? []).find(
+      (item: any) => item._id.toString() === photoId,
+    );
+    if (!photo) {
+      throw new NotFoundException('Foto no encontrada');
+    }
+
+    const absolutePath = join(process.cwd(), photo.storagePath);
+    if (!existsSync(absolutePath)) {
+      throw new NotFoundException('Archivo no encontrado en disco');
+    }
+
+    return {
+      storagePath: absolutePath,
+      originalName: photo.originalName,
+      mimeType: photo.mimeType,
+    };
   }
 
   async remove(id: string) {
@@ -422,6 +504,23 @@ export class AlquileresService {
     }
 
     return this.startOfDay(new Date(value));
+  }
+
+  private validateObjectId(value: string, message: string) {
+    if (!isValidObjectId(value)) {
+      throw new NotFoundException(message);
+    }
+  }
+
+  private toInitialConditionPhotoResponse(photo: any) {
+    return {
+      id: photo._id.toString(),
+      originalName: photo.originalName,
+      mimeType: photo.mimeType,
+      size: photo.size,
+      storagePath: photo.storagePath,
+      uploadedAt: photo.uploadedAt,
+    };
   }
 
   private async acquireVehicleLock(vehicleId: string) {

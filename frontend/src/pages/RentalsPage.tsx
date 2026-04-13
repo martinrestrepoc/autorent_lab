@@ -21,6 +21,7 @@ type Rental = {
   motivoCancelacion?: string;
   diasExceso?: number;
   estado: string;
+  fotosEstadoInicial?: Array<{ id?: string }>;
 };
 
 function Badge({ text }: { text: string }) {
@@ -393,8 +394,9 @@ export default function RentalsPage() {
                 <th className="w-[10%] text-left p-3 font-medium">Fin</th>
                 <th className="w-[10%] text-left p-3 font-medium">Fin real</th>
                 <th className="w-[10%] text-left p-3 font-medium">Días exceso</th>
+                <th className="w-[10%] text-left p-3 font-medium">Fotos inicio</th>
                 <th className="w-[12%] text-left p-3 font-medium">Estado</th>
-                <th className="w-[16%] text-right p-3 font-medium">Acciones</th>
+                <th className="w-[18%] text-right p-3 font-medium">Acciones</th>
               </tr>
             </thead>
 
@@ -407,7 +409,7 @@ export default function RentalsPage() {
                 </>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-slate-400" colSpan={8}>
+                  <td className="p-6 text-slate-400" colSpan={9}>
                     {rentals.length === 0
                       ? "No hay alquileres registrados todavía. Crea el primero con “+ Nuevo alquiler”."
                       : "No hay resultados con ese filtro."}
@@ -427,6 +429,7 @@ export default function RentalsPage() {
                     <td className="p-3">{formatDate(r.fechaFin)}</td>
                     <td className="p-3">{r.fechaFinReal ? formatDate(r.fechaFinReal) : "—"}</td>
                     <td className="p-3">{typeof r.diasExceso === "number" ? r.diasExceso : 0}</td>
+                    <td className="p-3">{r.fotosEstadoInicial?.length ?? 0}</td>
                     <td className="p-3">
                       <StatusPill status={r.estado} />
                     </td>
@@ -446,6 +449,16 @@ export default function RentalsPage() {
 
                         {openActionsRentalId === r._id && (
                           <div className="absolute bottom-full right-0 z-30 mb-2 w-44 rounded-xl border border-white/10 bg-slate-900/95 p-1 shadow-xl backdrop-blur">
+                            <button
+                              onClick={() => {
+                                setOpenActionsRentalId(null);
+                                navigate(`/rentals/${r._id}/initial-photos`);
+                              }}
+                              className="block w-full rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/10"
+                            >
+                              Ver fotos iniciales
+                            </button>
+
                             <button
                               onClick={() => {
                                 setOpenActionsRentalId(null);

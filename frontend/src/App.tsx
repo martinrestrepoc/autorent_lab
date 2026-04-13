@@ -13,6 +13,7 @@ import VehiclesPage from "./pages/VehiclesPage";
 import RentalsCreatePage from "./pages/RentalsCreatePage";
 import RentalsPage from "./pages/RentalsPage";
 import RentalsHistoryPage from "./pages/RentalsHistoryPage";
+import RentalsInitialPhotosPage from "./pages/RentalsInitialPhotosPage";
 
 // ↓ NUEVAS páginas de mantenimientos
 import MaintenanceCreatePage from "./pages/MaintenanceCreatePage";
@@ -55,6 +56,7 @@ export default function App() {
         {/* Rentals */}
         <Route path="/rentals" element={<RentalsPage />} />
         <Route path="/rentals/new" element={<RentalsCreatePage />} />
+        <Route path="/rentals/:id/initial-photos" element={<RentalsInitialPhotosPage />} />
         <Route path="/vehicles/:id/rentals" element={<RentalsHistoryPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

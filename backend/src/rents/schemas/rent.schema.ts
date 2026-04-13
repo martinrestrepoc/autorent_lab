@@ -1,6 +1,27 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Types } from "mongoose";
 
+@Schema({ _id: true })
+export class InitialConditionPhoto {
+  @Prop({ required: true, trim: true })
+  originalName: string;
+
+  @Prop({ required: true, trim: true })
+  mimeType: string;
+
+  @Prop({ required: true })
+  size: number;
+
+  @Prop({ required: true, trim: true })
+  storagePath: string;
+
+  @Prop({ required: true })
+  uploadedAt: Date;
+}
+
+export const InitialConditionPhotoSchema =
+  SchemaFactory.createForClass(InitialConditionPhoto);
+
 @Schema({ timestamps: true })
 export class Rent {
   @Prop({ type: Types.ObjectId, ref: 'Client', required: true })
@@ -32,6 +53,9 @@ export class Rent {
     default: 'PROGRAMADO',
   })
   estado: string;
+
+  @Prop({ type: [InitialConditionPhotoSchema], default: [] })
+  fotosEstadoInicial: InitialConditionPhoto[];
 }
 
 export const RentSchema = SchemaFactory.createForClass(Rent);
