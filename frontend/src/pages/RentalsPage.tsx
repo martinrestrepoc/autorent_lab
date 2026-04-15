@@ -21,6 +21,20 @@ type Rental = {
   motivoCancelacion?: string;
   diasExceso?: number;
   estado: string;
+  fotosEstadoInicial?: Array<{ id?: string }>;
+  fotosEstadoFinal?: Array<{ id?: string }>;
+};
+
+type RentalPhoto = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+};
+
+type PhotoPreview = RentalPhoto & {
+  previewUrl: string | null;
 };
 
 function Badge({ text }: { text: string }) {
@@ -60,10 +74,19 @@ function SkeletonRow() {
       <td className="p-3"><div className="h-3 w-20 rounded bg-white/10" /></td>
       <td className="p-3"><div className="h-3 w-20 rounded bg-white/10" /></td>
       <td className="p-3"><div className="h-3 w-12 rounded bg-white/10" /></td>
+      <td className="p-3"><div className="h-3 w-12 rounded bg-white/10" /></td>
       <td className="p-3"><div className="h-6 w-20 rounded-full bg-white/10" /></td>
       <td className="p-3"><div className="ml-auto h-7 w-20 rounded-lg bg-white/10" /></td>
     </tr>
   );
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const power = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / 1024 ** power;
+  return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
 }
 
 export default function RentalsPage() {
@@ -78,6 +101,10 @@ export default function RentalsPage() {
   const [fechaFinReal, setFechaFinReal] = useState("");
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [finalizeLoading, setFinalizeLoading] = useState(false);
+  const [finalizePhotosLoading, setFinalizePhotosLoading] = useState(false);
+  const [initialConditionPhotos, setInitialConditionPhotos] = useState<PhotoPreview[]>([]);
+  const [finalConditionPhotos, setFinalConditionPhotos] = useState<PhotoPreview[]>([]);
+  const [finalPhotosToUpload, setFinalPhotosToUpload] = useState<File[]>([]);
   const [deletingRentalId, setDeletingRentalId] = useState<string | null>(null);
   const [cancelingRentalId, setCancelingRentalId] = useState<string | null>(null);
   const [openActionsRentalId, setOpenActionsRentalId] = useState<string | null>(null);
@@ -117,6 +144,86 @@ export default function RentalsPage() {
     }
   }
 
+  async function fetchWithAuth(path: string, init?: RequestInit) {
+    const token = getToken();
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }
+
+  function revokePreviewUrls(items: PhotoPreview[]) {
+    items.forEach((item) => {
+      if (item.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+  }
+
+  async function buildPhotoPreviews(rentalId: string, type: "iniciales" | "finales") {
+    const listRes = await fetchWithAuth(`/alquileres/${rentalId}/fotos-${type}`);
+    const listData = await listRes.json().catch(() => ({}));
+
+    if (!listRes.ok) {
+      throw new Error(listData?.message || `No se pudo cargar las fotos ${type}`);
+    }
+
+    const photos = Array.isArray(listData?.photos) ? (listData.photos as RentalPhoto[]) : [];
+
+    return Promise.all(
+      photos.map(async (photo) => {
+        try {
+          const downloadRes = await fetchWithAuth(
+            `/alquileres/${rentalId}/fotos-${type}/${photo.id}/descargar`,
+          );
+
+          if (!downloadRes.ok) {
+            return { ...photo, previewUrl: null };
+          }
+
+          const blob = await downloadRes.blob();
+          return { ...photo, previewUrl: URL.createObjectURL(blob) };
+        } catch {
+          return { ...photo, previewUrl: null };
+        }
+      }),
+    );
+  }
+
+  async function loadFinalizePhotos(rentalId: string) {
+    setFinalizePhotosLoading(true);
+    try {
+      const [initialPhotos, finalPhotos] = await Promise.all([
+        buildPhotoPreviews(rentalId, "iniciales"),
+        buildPhotoPreviews(rentalId, "finales"),
+      ]);
+
+      setInitialConditionPhotos((current) => {
+        revokePreviewUrls(current);
+        return initialPhotos;
+      });
+      setFinalConditionPhotos((current) => {
+        revokePreviewUrls(current);
+        return finalPhotos;
+      });
+    } catch (e) {
+      setFinalizeError((e as Error).message);
+      setInitialConditionPhotos((current) => {
+        revokePreviewUrls(current);
+        return [];
+      });
+      setFinalConditionPhotos((current) => {
+        revokePreviewUrls(current);
+        return [];
+      });
+    } finally {
+      setFinalizePhotosLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadRentals();
   }, []);
@@ -135,6 +242,13 @@ export default function RentalsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      revokePreviewUrls(initialConditionPhotos);
+      revokePreviewUrls(finalConditionPhotos);
+    };
+  }, [finalConditionPhotos, initialConditionPhotos]);
+
   function formatDate(dateString: string) {
     return formatAppDate(dateString, "es-CO", {
       day: "2-digit",
@@ -150,6 +264,16 @@ export default function RentalsPage() {
   function isInProgress(rental: Rental) {
     const state = normalizeStatus(rental.estado);
     return state === "EN_CURSO" || state === "ACTIVO";
+  }
+
+  function canManageFinalPhotos(rental: Rental) {
+    const state = normalizeStatus(rental.estado);
+    return (
+      state === "EN_CURSO" ||
+      state === "ACTIVO" ||
+      state === "FINALIZADO" ||
+      state === "CANCELADO"
+    );
   }
 
   function canDelete(rental: Rental) {
@@ -169,7 +293,9 @@ export default function RentalsPage() {
     setSelectedRental(rental);
     setFechaFinReal("");
     setFinalizeError(null);
+    setFinalPhotosToUpload([]);
     setFinalizeModalOpen(true);
+    void loadFinalizePhotos(rental._id);
   }
 
   function closeFinalizeModal() {
@@ -178,6 +304,16 @@ export default function RentalsPage() {
     setSelectedRental(null);
     setFechaFinReal("");
     setFinalizeError(null);
+    setFinalizePhotosLoading(false);
+    setFinalPhotosToUpload([]);
+    setInitialConditionPhotos((current) => {
+      revokePreviewUrls(current);
+      return [];
+    });
+    setFinalConditionPhotos((current) => {
+      revokePreviewUrls(current);
+      return [];
+    });
   }
 
   function openCancelModal(rental: Rental) {
@@ -210,6 +346,46 @@ export default function RentalsPage() {
 
     setFinalizeError(null);
 
+    if (!isInProgress(selectedRental)) {
+      if (finalPhotosToUpload.length === 0) {
+        setFinalizeError("Selecciona al menos una foto final para cargar");
+        return;
+      }
+
+      try {
+        setFinalizeLoading(true);
+
+        const token = getToken();
+
+        for (const photo of finalPhotosToUpload) {
+          const formData = new FormData();
+          formData.append("file", photo);
+
+          const uploadRes = await fetch(`${API_BASE_URL}/alquileres/${selectedRental._id}/fotos-finales`, {
+            method: "POST",
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+          });
+
+          const uploadData = await uploadRes.json().catch(() => ({}));
+          if (!uploadRes.ok) {
+            throw new Error(uploadData?.message || `No se pudo subir la foto ${photo.name}`);
+          }
+        }
+
+        closeFinalizeModal();
+        await loadRentals();
+      } catch (e) {
+        setFinalizeError((e as Error).message);
+      } finally {
+        setFinalizeLoading(false);
+      }
+
+      return;
+    }
+
     if (!fechaFinReal) {
       setFinalizeError("Selecciona la fecha de fin real");
       return;
@@ -224,6 +400,25 @@ export default function RentalsPage() {
       setFinalizeLoading(true);
 
       const token = getToken();
+
+      for (const photo of finalPhotosToUpload) {
+        const formData = new FormData();
+        formData.append("file", photo);
+
+        const uploadRes = await fetch(`${API_BASE_URL}/alquileres/${selectedRental._id}/fotos-finales`, {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) {
+          throw new Error(uploadData?.message || `No se pudo subir la foto ${photo.name}`);
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/alquileres/${selectedRental._id}/finalizar`, {
         method: "PATCH",
         headers: {
@@ -393,8 +588,10 @@ export default function RentalsPage() {
                 <th className="w-[10%] text-left p-3 font-medium">Fin</th>
                 <th className="w-[10%] text-left p-3 font-medium">Fin real</th>
                 <th className="w-[10%] text-left p-3 font-medium">Días exceso</th>
-                <th className="w-[12%] text-left p-3 font-medium">Estado</th>
-                <th className="w-[16%] text-right p-3 font-medium">Acciones</th>
+                <th className="w-[10%] text-left p-3 font-medium">Fotos inicio</th>
+                <th className="w-[10%] text-left p-3 font-medium">Fotos fin</th>
+                <th className="w-[10%] text-left p-3 font-medium">Estado</th>
+                <th className="w-[18%] text-right p-3 font-medium">Acciones</th>
               </tr>
             </thead>
 
@@ -407,7 +604,7 @@ export default function RentalsPage() {
                 </>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-slate-400" colSpan={8}>
+                  <td className="p-6 text-slate-400" colSpan={10}>
                     {rentals.length === 0
                       ? "No hay alquileres registrados todavía. Crea el primero con “+ Nuevo alquiler”."
                       : "No hay resultados con ese filtro."}
@@ -427,6 +624,8 @@ export default function RentalsPage() {
                     <td className="p-3">{formatDate(r.fechaFin)}</td>
                     <td className="p-3">{r.fechaFinReal ? formatDate(r.fechaFinReal) : "—"}</td>
                     <td className="p-3">{typeof r.diasExceso === "number" ? r.diasExceso : 0}</td>
+                    <td className="p-3">{r.fotosEstadoInicial?.length ?? 0}</td>
+                    <td className="p-3">{r.fotosEstadoFinal?.length ?? 0}</td>
                     <td className="p-3">
                       <StatusPill status={r.estado} />
                     </td>
@@ -449,12 +648,22 @@ export default function RentalsPage() {
                             <button
                               onClick={() => {
                                 setOpenActionsRentalId(null);
+                                navigate(`/rentals/${r._id}/initial-photos`);
+                              }}
+                              className="block w-full rounded-lg px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/10"
+                            >
+                              Ver fotos iniciales
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setOpenActionsRentalId(null);
                                 openFinalizeModal(r);
                               }}
-                              disabled={!isInProgress(r)}
+                              disabled={!canManageFinalPhotos(r)}
                               className="block w-full rounded-lg px-3 py-2 text-left text-xs text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500"
                             >
-                              Finalizar contrato
+                              Fotos y finalización
                             </button>
 
                             <button
@@ -505,10 +714,10 @@ export default function RentalsPage() {
 
       {finalizeModalOpen && selectedRental && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-900 p-5">
-            <h2 className="text-lg font-semibold text-white">Finalizar contrato</h2>
+          <div className="w-full max-w-5xl rounded-2xl border border-white/15 bg-slate-900 p-5">
+            <h2 className="text-lg font-semibold text-white">Comparar fotos y finalizar contrato</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Vehículo {selectedRental.vehiculo?.plate ?? "—"} • Inicio {formatDate(selectedRental.fechaInicio)}
+              Vehículo {selectedRental!.vehiculo?.plate ?? "—"} • Inicio {formatDate(selectedRental!.fechaInicio)}
             </p>
 
             {finalizeError && (
@@ -517,30 +726,176 @@ export default function RentalsPage() {
               </div>
             )}
 
-            <div className="mt-4">
-              <label className="block text-xs text-slate-300">Fecha de fin real</label>
-              <input
-                type="date"
-                value={fechaFinReal}
-                onChange={(e) => setFechaFinReal(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-white/25"
-              />
-            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_320px]">
+              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Estado inicial</h3>
+                    <p className="text-xs text-slate-400">Fotos registradas al entregar el vehículo.</p>
+                  </div>
+                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">
+                    {initialConditionPhotos.length}
+                  </span>
+                </div>
 
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={closeFinalizeModal}
-                className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={submitFinalize}
-                disabled={finalizeLoading}
-                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60"
-              >
-                {finalizeLoading ? "Finalizando..." : "Confirmar finalización"}
-              </button>
+                {finalizePhotosLoading ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div key={index} className="animate-pulse rounded-xl border border-white/10 bg-white/5 p-2">
+                        <div className="aspect-[4/3] rounded-lg bg-white/10" />
+                      </div>
+                    ))}
+                  </div>
+                ) : initialConditionPhotos.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-6 text-center text-sm text-slate-500">
+                    No hay fotos iniciales registradas.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {initialConditionPhotos.map((photo) => (
+                      <article key={photo.id} className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/70">
+                        <div className="aspect-[4/3] bg-black/30">
+                          {photo.previewUrl ? (
+                            <img
+                              src={photo.previewUrl}
+                              alt={photo.originalName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-500">
+                              Vista previa no disponible
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <p className="truncate text-xs font-medium text-white">{photo.originalName}</p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {formatDate(photo.uploadedAt)} • {formatFileSize(photo.size)}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Estado final</h3>
+                    <p className="text-xs text-slate-400">Toma o sube fotos nuevas para compararlas con el estado inicial.</p>
+                  </div>
+                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">
+                    {finalConditionPhotos.length + finalPhotosToUpload.length}
+                  </span>
+                </div>
+
+                <label className="block text-xs text-slate-300">Fotos finales (JPG/PNG/WEBP)</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  multiple
+                  onChange={(e) => setFinalPhotosToUpload(Array.from(e.target.files ?? []))}
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-slate-950"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Repite frente, laterales, parte trasera, interior y cualquier detalle relevante.
+                </p>
+
+                {finalPhotosToUpload.length > 0 && (
+                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-emerald-200">
+                      Nuevas fotos por subir
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {finalPhotosToUpload.map((photo, index) => (
+                        <div
+                          key={`${photo.name}-${index}`}
+                          className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-200"
+                        >
+                          <span className="truncate pr-3">{photo.name}</span>
+                          <span className="shrink-0 text-slate-400">{formatFileSize(photo.size)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {finalConditionPhotos.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {finalConditionPhotos.map((photo) => (
+                      <article key={photo.id} className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/70">
+                        <div className="aspect-[4/3] bg-black/30">
+                          {photo.previewUrl ? (
+                            <img
+                              src={photo.previewUrl}
+                              alt={photo.originalName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-slate-500">
+                              Vista previa no disponible
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <p className="truncate text-xs font-medium text-white">{photo.originalName}</p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {formatDate(photo.uploadedAt)} • {formatFileSize(photo.size)}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+
+                {!finalizePhotosLoading &&
+                  finalConditionPhotos.length === 0 &&
+                  finalPhotosToUpload.length === 0 && (
+                    <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/10 p-6 text-center text-sm text-slate-500">
+                      Aún no hay fotos finales cargadas.
+                    </div>
+                  )}
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <label className="block text-xs text-slate-300">Fecha de fin real</label>
+                <input
+                  type="date"
+                  value={fechaFinReal}
+                  onChange={(e) => setFechaFinReal(e.target.value)}
+                  disabled={!isInProgress(selectedRental)}
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-white/25"
+                />
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+                  <p className="font-medium text-white">Antes de cerrar</p>
+                  <p className="mt-2">
+                    Verifica si hay diferencias entre las fotos iniciales y finales para dejar evidencia del estado del vehículo.
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <button
+                    onClick={submitFinalize}
+                    disabled={finalizeLoading || finalizePhotosLoading}
+                    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60"
+                  >
+                    {finalizeLoading
+                      ? "Guardando..."
+                      : isInProgress(selectedRental)
+                      ? "Guardar fotos y finalizar"
+                      : "Guardar fotos finales"}
+                  </button>
+                  <button
+                    onClick={closeFinalizeModal}
+                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         </div>

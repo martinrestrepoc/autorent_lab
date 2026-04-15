@@ -39,6 +39,7 @@ export default function RentalsCreatePage() {
   const [returnReminderDate, setReturnReminderDate] = useState("");
   const [returnReminderTitle, setReturnReminderTitle] = useState("");
   const [returnReminderDetail, setReturnReminderDetail] = useState("");
+  const [initialPhotos, setInitialPhotos] = useState<File[]>([]);
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -48,6 +49,14 @@ export default function RentalsCreatePage() {
 
   const inputBase =
     "mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-white/25";
+
+  const formatFileSize = useCallback((size: number) => {
+    if (!Number.isFinite(size) || size <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const power = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+    const value = size / 1024 ** power;
+    return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
+  }, []);
 
   const fetchJSON = useCallback(async (path: string) => {
     const token = getToken();
@@ -76,12 +85,12 @@ export default function RentalsCreatePage() {
         fetchJSON("/vehicles"),
       ]);
 
-      // clients: puede venir { clients: [] }
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : []);
 
-      // vehicles: puede venir array directo o { vehicles: [] }
-      const vList = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.vehicles ?? []);
-      setVehicles(Array.isArray(vList) ? vList : []);
+      const vehicleList = Array.isArray(vehiclesData)
+        ? vehiclesData
+        : (vehiclesData?.vehicles ?? []);
+      setVehicles(Array.isArray(vehicleList) ? vehicleList : []);
     } catch (e) {
       setError((e as Error).message);
       setClients([]);
@@ -108,6 +117,28 @@ export default function RentalsCreatePage() {
       if (!returnReminderTitle) setReturnReminderTitle("Devolución de alquiler");
     }
   }, [createReturnReminder, fechaFin, returnReminderDate, returnReminderTitle]);
+
+  async function uploadInitialPhotos(rentalId: string, token: string | null) {
+    for (const photo of initialPhotos) {
+      const formData = new FormData();
+      formData.append("file", photo);
+
+      const res = await fetch(`${API_BASE_URL}/alquileres/${rentalId}/fotos-iniciales`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          normalizeMessage(data?.message)[0] ?? `No se pudo subir la foto ${photo.name}`;
+        throw new Error(msg);
+      }
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -168,8 +199,12 @@ export default function RentalsCreatePage() {
         throw new Error(msg);
       }
 
+      const rentalId = data?._id ?? data?.alquiler?._id ?? data?.rent?._id;
+      if (rentalId && initialPhotos.length > 0) {
+        await uploadInitialPhotos(rentalId, token);
+      }
+
       setSuccessMsg(data?.message ?? "Alquiler creado con éxito");
-      // manda a la lista
       navigate("/rentals");
     } catch (err) {
       setError((err as Error).message);
@@ -180,7 +215,6 @@ export default function RentalsCreatePage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">
@@ -190,10 +224,8 @@ export default function RentalsCreatePage() {
             Selecciona cliente, vehículo y rango de fechas para programar el contrato.
           </p>
         </div>
-
       </div>
 
-      {/* Alerts */}
       {error && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
           {error}
@@ -206,7 +238,6 @@ export default function RentalsCreatePage() {
         </div>
       )}
 
-      {/* Card */}
       <section className="max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-6">
         {loadingInit ? (
           <div className="animate-pulse space-y-4">
@@ -244,7 +275,6 @@ export default function RentalsCreatePage() {
                 className={inputBase}
               >
                 <option value="">Seleccionar vehículo</option>
-
                 {vehicles.map((v) => (
                   <option key={v._id} value={v._id}>
                     {v.plate} - {v.brand}
@@ -276,6 +306,55 @@ export default function RentalsCreatePage() {
                   className={inputBase}
                 />
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold text-white">
+                  Evidencia del estado inicial
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Adjunta fotos del vehículo antes de la entrega. Si estás en móvil, puedes abrir la cámara desde aquí.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-300">
+                  Fotos iniciales (JPG/PNG/WEBP - máx 8MB por archivo)
+                </label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  multiple
+                  onChange={(e) => setInitialPhotos(Array.from(e.target.files ?? []))}
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-slate-950"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Sugerencia: toma frente, laterales, parte trasera, interior y cualquier detalle relevante.
+                </p>
+              </div>
+
+              {initialPhotos.length > 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                    Archivos seleccionados
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {initialPhotos.map((photo, index) => (
+                      <div
+                        key={`${photo.name}-${index}`}
+                        className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-200"
+                      >
+                        <span className="truncate pr-4">{photo.name}</span>
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {formatFileSize(photo.size)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/10 p-4 space-y-4">
