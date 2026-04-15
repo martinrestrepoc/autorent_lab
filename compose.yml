@@ -24,7 +24,7 @@ services:
     # leer el archivo .env y va a pasar esas variables al contenedor como variables de entorno.
     env_file:
       - ./.env
-    # espera que el healthcheck de mongo diga OK, antes de arrancar el backend (para que funcione, mongo debe tenet un healthcheck):
+    # espera que el healthcheck de mongo diga OK, antes de arrancar el backend (para que funcione, mongo debe tener un healthcheck):
         # mongo container created
         # mongo started
         # mongo responde ping

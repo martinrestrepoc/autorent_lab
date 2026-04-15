@@ -1,8 +1,4 @@
-# Se deben configurar los secrets en github
-
-
 name: CD
-
 on:
   workflow_run:
     workflows: ["CI"]
