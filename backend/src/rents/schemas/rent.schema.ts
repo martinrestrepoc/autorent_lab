@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Types } from "mongoose";
 
 @Schema({ _id: true })
-export class InitialConditionPhoto {
+export class ConditionPhoto {
   @Prop({ required: true, trim: true })
   originalName: string;
 
@@ -19,8 +19,7 @@ export class InitialConditionPhoto {
   uploadedAt: Date;
 }
 
-export const InitialConditionPhotoSchema =
-  SchemaFactory.createForClass(InitialConditionPhoto);
+export const ConditionPhotoSchema = SchemaFactory.createForClass(ConditionPhoto);
 
 @Schema({ timestamps: true })
 export class Rent {
@@ -54,8 +53,11 @@ export class Rent {
   })
   estado: string;
 
-  @Prop({ type: [InitialConditionPhotoSchema], default: [] })
-  fotosEstadoInicial: InitialConditionPhoto[];
+  @Prop({ type: [ConditionPhotoSchema], default: [] })
+  fotosEstadoInicial: ConditionPhoto[];
+
+  @Prop({ type: [ConditionPhotoSchema], default: [] })
+  fotosEstadoFinal: ConditionPhoto[];
 }
 
 export const RentSchema = SchemaFactory.createForClass(Rent);

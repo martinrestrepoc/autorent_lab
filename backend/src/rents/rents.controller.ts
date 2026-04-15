@@ -123,6 +123,67 @@ export class AlquileresController {
     return res.download(file.storagePath, file.originalName);
   }
 
+  @Post(':id/fotos-finales')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const relativeBasePath = join(
+            'uploads',
+            'rentals',
+            req.params.id,
+            'final-condition',
+          );
+          const absolutePath = join(process.cwd(), relativeBasePath);
+
+          if (!existsSync(absolutePath)) {
+            mkdirSync(absolutePath, { recursive: true });
+          }
+
+          cb(null, absolutePath);
+        },
+        filename: (_req, file, cb) => {
+          const extension = extname(file.originalname).toLowerCase();
+          const safeName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+          cb(null, safeName);
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        if (!allowedPhotoMimeTypes.includes(file.mimetype)) {
+          return cb(
+            new BadRequestException('Solo se permiten fotos JPG, PNG o WEBP'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+      limits: {
+        fileSize: 8 * 1024 * 1024,
+      },
+    }),
+  )
+  uploadFinalConditionPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: UploadedRentPhoto,
+  ) {
+    return this.service.uploadFinalConditionPhoto(id, file);
+  }
+
+  @Get(':id/fotos-finales')
+  listFinalConditionPhotos(@Param('id') id: string) {
+    return this.service.listFinalConditionPhotos(id);
+  }
+
+  @Get(':id/fotos-finales/:photoId/descargar')
+  async downloadFinalConditionPhoto(
+    @Param('id') id: string,
+    @Param('photoId') photoId: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.service.getFinalConditionPhotoFile(id, photoId);
+    return res.download(file.storagePath, file.originalName);
+  }
+
   @Patch(':id/finalizar')
   finalize(@Param('id') id: string, @Body() dto: FinalizeRentDto) {
     return this.service.finalize(id, dto);

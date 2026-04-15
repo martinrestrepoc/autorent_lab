@@ -264,6 +264,79 @@ export class AlquileresService {
     };
   }
 
+  async uploadFinalConditionPhoto(rentId: string, file: UploadedRentPhoto) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+
+    if (!file) {
+      throw new BadRequestException('Debe adjuntar una foto');
+    }
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    const relativePath = relative(process.cwd(), file.path);
+    rent.fotosEstadoFinal.push({
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      storagePath: relativePath,
+      uploadedAt: new Date(),
+    } as any);
+    await rent.save();
+
+    const savedPhoto = rent.fotosEstadoFinal[rent.fotosEstadoFinal.length - 1] as any;
+
+    return {
+      message: 'Foto final cargada con éxito',
+      photo: this.toInitialConditionPhotoResponse(savedPhoto),
+    };
+  }
+
+  async listFinalConditionPhotos(rentId: string) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    return {
+      photos: (rent.fotosEstadoFinal ?? []).map((photo: any) =>
+        this.toInitialConditionPhotoResponse(photo),
+      ),
+    };
+  }
+
+  async getFinalConditionPhotoFile(rentId: string, photoId: string) {
+    this.validateObjectId(rentId, 'Alquiler no encontrado');
+    this.validateObjectId(photoId, 'Foto no encontrada');
+
+    const rent = await this.rentModel.findById(rentId);
+    if (!rent) {
+      throw new NotFoundException('Alquiler no encontrado');
+    }
+
+    const photo = (rent.fotosEstadoFinal ?? []).find(
+      (item: any) => item._id.toString() === photoId,
+    );
+    if (!photo) {
+      throw new NotFoundException('Foto no encontrada');
+    }
+
+    const absolutePath = join(process.cwd(), photo.storagePath);
+    if (!existsSync(absolutePath)) {
+      throw new NotFoundException('Archivo no encontrado en disco');
+    }
+
+    return {
+      storagePath: absolutePath,
+      originalName: photo.originalName,
+      mimeType: photo.mimeType,
+    };
+  }
+
   async remove(id: string) {
     await this.syncRentalStatuses();
 
