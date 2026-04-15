@@ -901,49 +901,6 @@ export default function RentalsPage() {
         </div>
       )}
 
-      {false && finalizeModalOpen && selectedRental && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-5xl rounded-2xl border border-white/15 bg-slate-900 p-5">
-            <h2 className="text-lg font-semibold text-white">Comparar fotos y finalizar contrato</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Vehículo {selectedRental!.vehiculo?.plate ?? "—"} • Inicio {formatDate(selectedRental!.fechaInicio)}
-            </p>
-
-            {finalizeError && (
-              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-                {finalizeError}
-              </div>
-            )}
-
-            <div className="mt-4">
-              <label className="block text-xs text-slate-300">Fecha de fin real</label>
-              <input
-                type="date"
-                value={fechaFinReal}
-                onChange={(e) => setFechaFinReal(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-white/25"
-              />
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={closeFinalizeModal}
-                className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={submitFinalize}
-                disabled={finalizeLoading}
-                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60"
-              >
-                {finalizeLoading ? "Finalizando..." : "Confirmar finalización"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {cancelModalOpen && cancelPreviewRental && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-900 p-5">

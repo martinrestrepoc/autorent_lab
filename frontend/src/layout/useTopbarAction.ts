@@ -7,22 +7,26 @@ import {
 export function useTopbarAction(action: TopbarAction) {
   const { setAction } = useTopbarActionContext();
   const previousActionRef = useRef<TopbarAction>(null);
+  const label = action?.label;
+  const to = action?.to;
+  const onClick = action?.onClick;
 
   useEffect(() => {
+    const nextAction = label ? { label, to, onClick } : null;
     const previousAction = previousActionRef.current;
     const hasChanged =
-      previousAction?.label !== action?.label ||
-      previousAction?.to !== action?.to ||
-      previousAction?.onClick !== action?.onClick;
+      previousAction?.label !== nextAction?.label ||
+      previousAction?.to !== nextAction?.to ||
+      previousAction?.onClick !== nextAction?.onClick;
 
     if (hasChanged) {
-      previousActionRef.current = action;
-      setAction(action);
+      previousActionRef.current = nextAction;
+      setAction(nextAction);
     }
 
     return () => {
       previousActionRef.current = null;
       setAction(null);
     };
-  }, [action?.label, action?.to, action?.onClick, setAction]);
+  }, [label, to, onClick, setAction]);
 }
