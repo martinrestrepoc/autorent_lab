@@ -50,7 +50,7 @@ export class ClientsService {
     }
 
     const updated = await this.clientModel.findByIdAndUpdate(id, dto, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     });
 

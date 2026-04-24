@@ -398,9 +398,23 @@ export class AlquileresService {
       );
     }
 
+    const hayDanos = dto.hayDanos;
+    const descripcionReporte = (dto.descripcionReporte ?? '').trim();
+
+    if (hayDanos && !descripcionReporte) {
+      throw new BadRequestException(
+        'Debe ingresar un reporte cuando se detectan daños',
+      );
+    }
+
     rent.fechaFinReal = fechaFinReal;
     rent.estado = 'FINALIZADO';
     rent.diasExceso = this.calculateExceededDays(rent.fechaFin, fechaFinReal);
+    rent.reporteCierre = {
+      hayDanos,
+      descripcion: descripcionReporte || 'Sin daños reportados al cierre',
+      fechaReporte: new Date(),
+    } as any;
     await rent.save();
 
     await this.updateVehicleOperationalStatus(String(rent.vehiculo));
@@ -510,7 +524,7 @@ export class AlquileresService {
         const activated = await this.rentModel.findOneAndUpdate(
           { _id: rent._id, estado: { $in: ['PROGRAMADO', 'ACTIVO'] } },
           { $set: { estado: 'EN_CURSO' } },
-          { new: true },
+          { returnDocument: 'after' },
         );
 
         if (activated) {
@@ -620,7 +634,7 @@ export class AlquileresService {
           rentalLockUntil: lockUntil,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!lockedVehicle) {

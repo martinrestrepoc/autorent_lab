@@ -21,6 +21,21 @@ export class ConditionPhoto {
 
 export const ConditionPhotoSchema = SchemaFactory.createForClass(ConditionPhoto);
 
+@Schema({ _id: false })
+export class FinalConditionReport {
+  @Prop({ required: true, default: false })
+  hayDanos: boolean;
+
+  @Prop({ required: true, trim: true })
+  descripcion: string;
+
+  @Prop({ required: true })
+  fechaReporte: Date;
+}
+
+export const FinalConditionReportSchema =
+  SchemaFactory.createForClass(FinalConditionReport);
+
 @Schema({ timestamps: true })
 export class Rent {
   @Prop({ type: Types.ObjectId, ref: 'Client', required: true })
@@ -58,6 +73,9 @@ export class Rent {
 
   @Prop({ type: [ConditionPhotoSchema], default: [] })
   fotosEstadoFinal: ConditionPhoto[];
+
+  @Prop({ type: FinalConditionReportSchema, default: null })
+  reporteCierre?: FinalConditionReport | null;
 }
 
 export const RentSchema = SchemaFactory.createForClass(Rent);

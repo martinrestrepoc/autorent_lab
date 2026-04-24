@@ -23,6 +23,11 @@ type Rental = {
   estado: string;
   fotosEstadoInicial?: Array<{ id?: string }>;
   fotosEstadoFinal?: Array<{ id?: string }>;
+  reporteCierre?: {
+    hayDanos: boolean;
+    descripcion: string;
+    fechaReporte: string;
+  } | null;
 };
 
 type RentalPhoto = {
@@ -105,6 +110,8 @@ export default function RentalsPage() {
   const [initialConditionPhotos, setInitialConditionPhotos] = useState<PhotoPreview[]>([]);
   const [finalConditionPhotos, setFinalConditionPhotos] = useState<PhotoPreview[]>([]);
   const [finalPhotosToUpload, setFinalPhotosToUpload] = useState<File[]>([]);
+  const [hayDanos, setHayDanos] = useState(false);
+  const [descripcionReporte, setDescripcionReporte] = useState("");
   const [deletingRentalId, setDeletingRentalId] = useState<string | null>(null);
   const [cancelingRentalId, setCancelingRentalId] = useState<string | null>(null);
   const [openActionsRentalId, setOpenActionsRentalId] = useState<string | null>(null);
@@ -280,6 +287,10 @@ export default function RentalsPage() {
     return !isInProgress(rental);
   }
 
+  function isFinalized(rental: Rental) {
+    return normalizeStatus(rental.estado) === "FINALIZADO";
+  }
+
   function canCancel(rental: Rental) {
     const state = normalizeStatus(rental.estado);
     return state === "PROGRAMADO" || state === "EN_CURSO" || state === "ACTIVO";
@@ -294,6 +305,8 @@ export default function RentalsPage() {
     setFechaFinReal("");
     setFinalizeError(null);
     setFinalPhotosToUpload([]);
+    setHayDanos(rental.reporteCierre?.hayDanos ?? false);
+    setDescripcionReporte(rental.reporteCierre?.descripcion ?? "");
     setFinalizeModalOpen(true);
     void loadFinalizePhotos(rental._id);
   }
@@ -306,6 +319,8 @@ export default function RentalsPage() {
     setFinalizeError(null);
     setFinalizePhotosLoading(false);
     setFinalPhotosToUpload([]);
+    setHayDanos(false);
+    setDescripcionReporte("");
     setInitialConditionPhotos((current) => {
       revokePreviewUrls(current);
       return [];
@@ -345,6 +360,11 @@ export default function RentalsPage() {
     if (!selectedRental) return;
 
     setFinalizeError(null);
+
+    if (isFinalized(selectedRental)) {
+      closeFinalizeModal();
+      return;
+    }
 
     if (!isInProgress(selectedRental)) {
       if (finalPhotosToUpload.length === 0) {
@@ -396,6 +416,12 @@ export default function RentalsPage() {
       return;
     }
 
+    const reporteNormalizado = descripcionReporte.trim();
+    if (hayDanos && !reporteNormalizado) {
+      setFinalizeError("Describe los daños detectados antes de finalizar");
+      return;
+    }
+
     try {
       setFinalizeLoading(true);
 
@@ -425,7 +451,11 @@ export default function RentalsPage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ fechaFinReal }),
+        body: JSON.stringify({
+          fechaFinReal,
+          hayDanos,
+          descripcionReporte: reporteNormalizado || "Sin daños reportados al cierre",
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -522,6 +552,12 @@ export default function RentalsPage() {
     });
   }, [rentals, query]);
 
+  function getCloseReportLabel(rental: Rental) {
+    if (!isFinalized(rental)) return "—";
+    if (!rental.reporteCierre) return "Sin reporte";
+    return rental.reporteCierre.hayDanos ? "Con daños" : "Sin daños";
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -590,6 +626,7 @@ export default function RentalsPage() {
                 <th className="w-[10%] text-left p-3 font-medium">Días exceso</th>
                 <th className="w-[10%] text-left p-3 font-medium">Fotos inicio</th>
                 <th className="w-[10%] text-left p-3 font-medium">Fotos fin</th>
+                <th className="w-[12%] text-left p-3 font-medium">Reporte cierre</th>
                 <th className="w-[10%] text-left p-3 font-medium">Estado</th>
                 <th className="w-[18%] text-right p-3 font-medium">Acciones</th>
               </tr>
@@ -604,7 +641,7 @@ export default function RentalsPage() {
                 </>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-slate-400" colSpan={10}>
+                  <td className="p-6 text-slate-400" colSpan={11}>
                     {rentals.length === 0
                       ? "No hay alquileres registrados todavía. Crea el primero con “+ Nuevo alquiler”."
                       : "No hay resultados con ese filtro."}
@@ -626,6 +663,7 @@ export default function RentalsPage() {
                     <td className="p-3">{typeof r.diasExceso === "number" ? r.diasExceso : 0}</td>
                     <td className="p-3">{r.fotosEstadoInicial?.length ?? 0}</td>
                     <td className="p-3">{r.fotosEstadoFinal?.length ?? 0}</td>
+                    <td className="p-3">{getCloseReportLabel(r)}</td>
                     <td className="p-3">
                       <StatusPill status={r.estado} />
                     </td>
@@ -860,6 +898,24 @@ export default function RentalsPage() {
               </section>
 
               <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                {isFinalized(selectedRental) && selectedRental.reporteCierre && (
+                  <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
+                    <p className="font-medium text-white">Reporte registrado</p>
+                    <p className="mt-2">
+                      Estado reportado:{" "}
+                      <span className="font-semibold text-white">
+                        {selectedRental.reporteCierre.hayDanos ? "Con daños" : "Sin daños"}
+                      </span>
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-300">
+                      {selectedRental.reporteCierre.descripcion}
+                    </p>
+                    <p className="mt-2 text-slate-500">
+                      Reportado el {formatDate(selectedRental.reporteCierre.fechaReporte)}
+                    </p>
+                  </div>
+                )}
+
                 <label className="block text-xs text-slate-300">Fecha de fin real</label>
                 <input
                   type="date"
@@ -868,6 +924,65 @@ export default function RentalsPage() {
                   disabled={!isInProgress(selectedRental)}
                   className="mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-white/25"
                 />
+
+                <div className="mt-4 space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                      Estado al cierre
+                    </p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      Registra si el vehículo presenta daños al compararlo con las fotos iniciales.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => isInProgress(selectedRental) && setHayDanos(false)}
+                      disabled={!isInProgress(selectedRental)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                        !hayDanos
+                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                          : "border-white/10 bg-black/20 text-slate-300"
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      Sin daños
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => isInProgress(selectedRental) && setHayDanos(true)}
+                      disabled={!isInProgress(selectedRental)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                        hayDanos
+                          ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+                          : "border-white/10 bg-black/20 text-slate-300"
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      Con daños
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-300">Reporte de estado</label>
+                    <textarea
+                      value={descripcionReporte}
+                      onChange={(e) => setDescripcionReporte(e.target.value)}
+                      disabled={!isInProgress(selectedRental)}
+                      rows={5}
+                      placeholder={
+                        hayDanos
+                          ? "Describe los daños detectados al cierre..."
+                          : "Ejemplo: Sin daños reportados al cierre."
+                      }
+                      className="mt-1 w-full resize-none rounded-xl border border-white/15 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-white/25 disabled:opacity-80"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      {hayDanos
+                        ? "Este campo es obligatorio cuando se detectan daños."
+                        : "Puedes dejar una observación breve o usar el texto por defecto."}
+                    </p>
+                  </div>
+                </div>
 
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
                   <p className="font-medium text-white">Antes de cerrar</p>
@@ -884,6 +999,8 @@ export default function RentalsPage() {
                   >
                     {finalizeLoading
                       ? "Guardando..."
+                      : isFinalized(selectedRental)
+                      ? "Cerrar"
                       : isInProgress(selectedRental)
                       ? "Guardar fotos y finalizar"
                       : "Guardar fotos finales"}

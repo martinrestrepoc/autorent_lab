@@ -40,7 +40,7 @@ export class NotificationsService {
     const notification = await this.notificationModel.findOneAndUpdate(
       { _id: notificationId, userId: normalizedUserId },
       { $set: { leida: true, readAt: new Date() } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!notification) {

@@ -5,7 +5,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import mongoose, { Connection } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
 
 const TEST_MONGO_URI =
   process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017/autorent_test_ci';
@@ -29,6 +28,9 @@ describe('Auth and Vehicles (e2e)', () => {
     await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
 
+    // Jest carga el módulo aquí para que AppModule lea MONGO_URI ya inicializado.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { AppModule } = require('./../src/app.module');
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -51,9 +53,19 @@ describe('Auth and Vehicles (e2e)', () => {
       return;
     }
 
+    const rentsCollection = connection.collections.rents;
+    if (rentsCollection) {
+      await rentsCollection.deleteMany({});
+    }
+
     const vehiclesCollection = connection.collections.vehicles;
     if (vehiclesCollection) {
       await vehiclesCollection.deleteMany({});
+    }
+
+    const clientsCollection = connection.collections.clients;
+    if (clientsCollection) {
+      await clientsCollection.deleteMany({});
     }
   });
 
@@ -76,6 +88,36 @@ describe('Auth and Vehicles (e2e)', () => {
       .expect(200);
 
     return response.body.access_token as string;
+  }
+
+  async function createClient() {
+    const response = await request(app.getHttpServer())
+      .post('/clients')
+      .send({
+        fullName: 'Cliente Prueba Finalizacion',
+        documentType: 'CC',
+        documentNumber: '1234567890',
+        phone: '3001234567',
+        email: 'cliente.finalizacion@example.com',
+      })
+      .expect(201);
+
+    return response.body.client._id as string;
+  }
+
+  async function createVehicle(token: string) {
+    const response = await request(app.getHttpServer())
+      .post('/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        plate: 'XYZ789',
+        brand: 'Mazda',
+        model: 'CX5',
+        year: 2026,
+      })
+      .expect(201);
+
+    return response.body.vehicle._id as string;
   }
 
   it('rejects invalid credentials on POST /auth/login', async () => {
@@ -140,6 +182,82 @@ describe('Auth and Vehicles (e2e)', () => {
           brand: 'Toyota',
           model: 'Corolla',
           year: 2024,
+        }),
+      ]),
+    );
+  });
+
+  it('finalizes rents with a closing damage report', async () => {
+    const token = await loginAndGetToken();
+    const clientId = await createClient();
+    const vehicleId = await createVehicle(token);
+    const today = new Date();
+    const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+    const startDate = formatDate(today);
+    const plannedEndDate = formatDate(
+      new Date(today.getTime() + 24 * 60 * 60 * 1000),
+    );
+    const finalDate = formatDate(
+      new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
+    );
+
+    const createRentResponse = await request(app.getHttpServer())
+      .post('/alquileres')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        cliente: clientId,
+        vehiculo: vehicleId,
+        fechaInicio: startDate,
+        fechaFin: plannedEndDate,
+      })
+      .expect(201);
+
+    const rentId = createRentResponse.body._id as string;
+
+    const finalizeResponse = await request(app.getHttpServer())
+      .patch(`/alquileres/${rentId}/finalizar`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        fechaFinReal: finalDate,
+        hayDanos: true,
+        descripcionReporte:
+          'Rayon leve en el bumper delantero y marca superficial en la puerta derecha al cierre.',
+      })
+      .expect(200);
+
+    expect(finalizeResponse.body.message).toBe('Contrato finalizado con éxito');
+    expect(finalizeResponse.body.alquiler).toMatchObject({
+      _id: rentId,
+      estado: 'FINALIZADO',
+      diasExceso: 2,
+      reporteCierre: {
+        hayDanos: true,
+        descripcion:
+          'Rayon leve en el bumper delantero y marca superficial en la puerta derecha al cierre.',
+      },
+    });
+    expect(finalizeResponse.body.alquiler.fechaFinReal).toContain(finalDate);
+    expect(finalizeResponse.body.alquiler.reporteCierre.fechaReporte).toEqual(
+      expect.any(String),
+    );
+
+    const rentsResponse = await request(app.getHttpServer())
+      .get('/alquileres')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(Array.isArray(rentsResponse.body)).toBe(true);
+    expect(rentsResponse.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: rentId,
+          estado: 'FINALIZADO',
+          diasExceso: 2,
+          reporteCierre: expect.objectContaining({
+            hayDanos: true,
+            descripcion:
+              'Rayon leve en el bumper delantero y marca superficial en la puerta derecha al cierre.',
+          }),
         }),
       ]),
     );

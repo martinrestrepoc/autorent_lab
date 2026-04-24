@@ -63,7 +63,7 @@ export class VehiclesService {
       id,
       { $set: dto },
       {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       },
     );

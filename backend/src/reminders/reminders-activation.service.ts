@@ -58,7 +58,7 @@ export class RemindersActivationService {
             notifiedAt: new Date(),
           },
         },
-        { new: true },
+        { returnDocument: 'after' },
       );
 
       if (!activatedReminder) {
