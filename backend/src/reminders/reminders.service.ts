@@ -110,7 +110,7 @@ export class RemindersService {
           notifiedAt: null,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
   }
 
