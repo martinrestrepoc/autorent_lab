@@ -752,7 +752,7 @@ export default function RentalsPage() {
 
       {finalizeModalOpen && selectedRental && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-5xl rounded-2xl border border-white/15 bg-slate-900 p-5">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/15 bg-slate-900 p-5">
             <h2 className="text-lg font-semibold text-white">Comparar fotos y finalizar contrato</h2>
             <p className="mt-1 text-sm text-slate-400">
               Vehículo {selectedRental!.vehiculo?.plate ?? "—"} • Inicio {formatDate(selectedRental!.fechaInicio)}
@@ -992,25 +992,34 @@ export default function RentalsPage() {
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    onClick={submitFinalize}
-                    disabled={finalizeLoading || finalizePhotosLoading}
-                    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60"
-                  >
-                    {finalizeLoading
-                      ? "Guardando..."
-                      : isFinalized(selectedRental)
-                      ? "Cerrar"
-                      : isInProgress(selectedRental)
-                      ? "Guardar fotos y finalizar"
-                      : "Guardar fotos finales"}
-                  </button>
-                  <button
-                    onClick={closeFinalizeModal}
-                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
-                  >
-                    Cerrar
-                  </button>
+                  {isFinalized(selectedRental) ? (
+                    <button
+                      onClick={closeFinalizeModal}
+                      className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90"
+                    >
+                      Cerrar
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={submitFinalize}
+                        disabled={finalizeLoading || finalizePhotosLoading}
+                        className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60"
+                      >
+                        {finalizeLoading
+                          ? "Guardando..."
+                          : isInProgress(selectedRental)
+                          ? "Guardar fotos y finalizar"
+                          : "Guardar fotos finales"}
+                      </button>
+                      <button
+                        onClick={closeFinalizeModal}
+                        className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+                      >
+                        Cerrar
+                      </button>
+                    </>
+                  )}
                 </div>
               </section>
             </div>
